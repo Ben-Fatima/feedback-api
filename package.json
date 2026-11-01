@@ -1,0 +1,13 @@
+{
+  "name": "feedback-api",
+  "version": "1.0.0",
+  "description": "Article feedback widget backed by a zero-dependency Node.js HTTP API",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
