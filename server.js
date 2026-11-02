@@ -26,6 +26,24 @@ const MAX_COMMENT = 500;
 // the only votes the contract allows
 const VOTES = new Set(['up', 'down']);
 
+// the most requests one client can make inside one window
+const RATE_LIMIT = 5;
+const RATE_WINDOW_MS = 10_000;
+// one counter per client address — ip -> { count, resetAt }
+const hits = new Map();
+
+// fixed window: once the count passes the limit, the rest are rejected
+function rateLimited(ip) {
+  const now = Date.now();
+  const entry = hits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > RATE_LIMIT;
+}
+
 // reads the body, but kills the request if it grows past the limit
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -50,6 +68,14 @@ async function writeLog(line) {
 }
 
 async function handleFeedback(req, res) {
+  // the real client address — from the connection, never from the body
+  const ip = req.socket.remoteAddress;
+  // reject a flood cheaply, before we spend a byte reading the body
+  if (rateLimited(ip)) {
+    res.setHeader('Retry-After', '10');
+    return sendJson(res, 429, { error: 'Too many requests' });
+  }
+
   // fix one — an oversized body is a 413, caught before we even parse
   let body;
   try { body = await readBody(req); }
@@ -69,8 +95,6 @@ async function handleFeedback(req, res) {
 
   // fix four — the log line is JSON now: the comment is data,
   // its line breaks stay inside quotes, it can never fake an entry
-  // the real client address — taken from the connection, never from the body
-  const ip = req.socket.remoteAddress;
   // one structured entry per request — fields, not free text
   await writeLog(JSON.stringify({
     event: 'feedback', at: new Date().toISOString(), vote, ip, articleId, comment
