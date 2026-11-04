@@ -1,0 +1,2 @@
+# flood check — 8 quick POSTs to /api/feedback, prints each status code
+for i in $(seq 1 8); do curl -s -o /dev/null -w "%{http_code} " -X POST localhost:3000/api/feedback -H 'Content-Type: application/json' -d '{"vote":"up","articleId":"a1"}'; done
